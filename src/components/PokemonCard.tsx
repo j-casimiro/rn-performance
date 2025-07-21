@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   StyleSheet,
   View,
   Text,
 } from 'react-native';
+import FastImage from '@d11/react-native-fast-image';
 
 export const PokemonCard = React.memo(function PokemonCard({
   name,
@@ -61,10 +61,13 @@ export const PokemonCard = React.memo(function PokemonCard({
     );
   } else {
     content = (
-      <Image
-        source={{ uri: imageUrl }}
+      <FastImage
         style={styles.image}
-        resizeMode="contain"
+        source={{
+          uri: imageUrl,
+          priority: FastImage.priority.normal,
+        }}
+        resizeMode={FastImage.resizeMode.contain}
       />
     );
   }
@@ -89,7 +92,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#e0e0e0',
     borderRadius: 12,
   },
-  image: { width: 60, height: 60, marginRight: 12 },
+  image: { width: 100, height: 100, marginRight: 12 },
   imagePlaceholder: { justifyContent: 'center', alignItems: 'center' },
   cardText: { fontSize: 16, flexShrink: 1 },
 });

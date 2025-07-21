@@ -42,7 +42,7 @@
             "deploymentTarget": "15.1",
             "useFrameworks": "static",
             "swiftVersion": "5.0",
-            "useHermes": true
+            "useHermes": false
           }
         }
       ]
