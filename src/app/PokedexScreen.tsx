@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,37 @@ export default function PokedexScreen() {
   const favorites = useStore((state) => state.favorites);
   const toggleFavorite = useStore((state) => state.toggleFavorite);
 
+  // Refs to always have latest values in closures
+  const favoritesRef = useRef(favorites);
+  const toggleFavoriteRef = useRef(toggleFavorite);
+  const setSearchRef = useRef(setSearch);
+
+  // Keep refs in sync with latest store values to avoid stale closures in debounced and callback functions
+  useEffect(() => {
+    favoritesRef.current = favorites;
+    toggleFavoriteRef.current = toggleFavorite;
+    setSearchRef.current = setSearch;
+  }, [favorites, toggleFavorite, setSearch]);
+
+  // Debounce search input, always using latest setSearch
+  const debouncedSetSearch = useRef(
+    debounce((text: string) => setSearchRef.current(text), 300)
+  );
+
+  // Clean up debounced function on unmount to prevent memory leaks
+  useEffect(() => {
+    const debounced = debouncedSetSearch.current;
+    return () => {
+      if (debounced && debounced.cancel) {
+        debounced.cancel();
+      }
+    };
+  }, []);
+
+  const handleSearch = useCallback((text: string) => {
+    debouncedSetSearch.current(text.toLowerCase());
+  }, []);
+
   // UseInfiniteQuery for paginated data
   const {
     data,
@@ -37,34 +68,28 @@ export default function PokedexScreen() {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
-  // Debounce search input
-  const debouncedSetSearch = useRef(debounce(setSearch, 300)).current;
-
-  const handleSearch = useCallback(
-    (text: string) => {
-      debouncedSetSearch(text.toLowerCase());
-    },
-    [debouncedSetSearch]
-  );
-
-  // Memoize pokemons list for performance
+  // Optimized memoization of pokemons list
   const pokemons = useMemo(() => {
-    if (!data) return [];
+    if (!data?.pages?.length) return [];
     const all = data.pages.flatMap((page) => page.results);
     if (!search) return all;
-    return all.filter((pokemon) => pokemon.name.includes(search));
+    const searchLower = search.toLowerCase();
+    return all.filter((pokemon) =>
+      pokemon.name.toLowerCase().includes(searchLower)
+    );
   }, [data, search]);
 
+  // Use refs in renderItem to avoid stale closures
   const renderItem = useCallback(
     ({ item }: { item: { name: string; url: string } }) => (
       <PokemonCard
         name={item.name}
         url={item.url}
-        favorites={favorites}
-        toggleFavorite={toggleFavorite}
+        favorites={favoritesRef.current}
+        toggleFavorite={toggleFavoriteRef.current}
       />
     ),
-    [favorites, toggleFavorite]
+    []
   );
 
   // Remove delayedFetching logic and use isFetchingNextPage directly

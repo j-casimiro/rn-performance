@@ -24,24 +24,22 @@ export const PokemonCard = React.memo(function PokemonCard({
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    let isMounted = true;
+    const controller = new AbortController();
     setLoading(true);
     setError(false);
-    fetch(url)
+    fetch(url, { signal: controller.signal })
       .then((res) => res.json())
       .then((data) => {
-        if (!isMounted) return;
         setImageUrl(data.sprites?.front_default || '');
         setLoading(false);
       })
-      .catch(() => {
-        if (isMounted) {
-          setError(true);
-          setLoading(false);
-        }
+      .catch((err) => {
+        if (err.name === 'AbortError') return; // Ignore abort errors
+        setError(true);
+        setLoading(false);
       });
     return () => {
-      isMounted = false;
+      controller.abort();
     };
   }, [url]);
 
