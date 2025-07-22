@@ -21,16 +21,12 @@ export default function PokedexScreen() {
   const toggleFavorite = useStore((state) => state.toggleFavorite);
 
   // Refs to always have latest values in closures
-  const favoritesRef = useRef(favorites);
-  const toggleFavoriteRef = useRef(toggleFavorite);
   const setSearchRef = useRef(setSearch);
 
   // Keep refs in sync with latest store values to avoid stale closures in debounced and callback functions
   useEffect(() => {
-    favoritesRef.current = favorites;
-    toggleFavoriteRef.current = toggleFavorite;
     setSearchRef.current = setSearch;
-  }, [favorites, toggleFavorite, setSearch]);
+  }, [setSearch]);
 
   // Debounce search input, always using latest setSearch
   const debouncedSetSearch = useRef(
@@ -85,11 +81,11 @@ export default function PokedexScreen() {
       <PokemonCard
         name={item.name}
         url={item.url}
-        favorites={favoritesRef.current}
-        toggleFavorite={toggleFavoriteRef.current}
+        favorites={favorites}
+        toggleFavorite={toggleFavorite}
       />
     ),
-    []
+    [favorites, toggleFavorite]
   );
 
   // Remove delayedFetching logic and use isFetchingNextPage directly
