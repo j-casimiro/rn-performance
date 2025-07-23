@@ -1,4 +1,10 @@
-import React, { useCallback, useMemo, useRef, useEffect } from 'react';
+import React, {
+  useCallback,
+  useMemo,
+  useRef,
+  useEffect,
+  useState,
+} from 'react';
 import {
   View,
   Text,
@@ -12,6 +18,10 @@ import debounce from 'lodash.debounce';
 import { useStore } from '../utils/store';
 import { fetchPokemons } from '../utils/fetch-pokemon';
 import { PokemonCard } from '../components/PokemonCard';
+import {
+  fetchPokemonDetails,
+  getPokemonId,
+} from '../utils/fetch-pokemon-details';
 
 export default function PokedexScreen() {
   // Use zustand selectors to avoid unnecessary re-renders
@@ -19,6 +29,13 @@ export default function PokedexScreen() {
   const setSearch = useStore((state) => state.setSearch);
   const favorites = useStore((state) => state.favorites);
   const toggleFavorite = useStore((state) => state.toggleFavorite);
+  const [pokemonDetails, setPokemonDetails] = useState<{
+    [name: string]: {
+      id: number | null;
+      sprite: string | null;
+      types: string[];
+    };
+  }>({});
 
   // Refs to always have latest values in closures
   const setSearchRef = useRef(setSearch);
@@ -44,7 +61,7 @@ export default function PokedexScreen() {
   }, []);
 
   const handleSearch = useCallback((text: string) => {
-    debouncedSetSearch.current(text.toLowerCase());
+    debouncedSetSearch.current(text);
   }, []);
 
   // UseInfiniteQuery for paginated data
@@ -69,23 +86,68 @@ export default function PokedexScreen() {
     if (!data?.pages?.length) return [];
     const all = data.pages.flatMap((page) => page.results);
     if (!search) return all;
-    const searchLower = search.toLowerCase();
     return all.filter((pokemon) =>
-      pokemon.name.toLowerCase().includes(searchLower)
+      pokemon.name.toLowerCase().includes(search.toLowerCase())
     );
   }, [data, search]);
 
+  // Fetch additional info for visible pokemons
+  useEffect(() => {
+    let isMounted = true;
+    const fetchDetails = async () => {
+      const missing = pokemons.filter((p) => !pokemonDetails[p.name]);
+      if (missing.length === 0) return;
+      const promises = missing.map(async (p) => {
+        const id = getPokemonId(p.url) || p.name;
+        const details = await fetchPokemonDetails(id);
+        return { name: p.name, ...details };
+      });
+      const results = await Promise.all(promises);
+      if (isMounted) {
+        setPokemonDetails((prev) => {
+          const next = { ...prev };
+          for (const r of results) {
+            next[r.name] = { id: r.id, sprite: r.sprite, types: r.types };
+          }
+          return next;
+        });
+      }
+    };
+    fetchDetails();
+    return () => {
+      isMounted = false;
+    };
+  }, [pokemons]);
+
   // Use refs in renderItem to avoid stale closures
   const renderItem = useCallback(
-    ({ item }: { item: { name: string; url: string } }) => (
-      <PokemonCard
-        name={item.name}
-        url={item.url}
-        favorites={favorites}
-        toggleFavorite={toggleFavorite}
-      />
-    ),
-    [favorites, toggleFavorite]
+    ({ item }: { item: { name: string; url: string } }) => {
+      const details = pokemonDetails[item.name] || {};
+      return (
+        <View style={styles.cardContainer}>
+          <PokemonCard
+            name={item.name}
+            url={item.url}
+            favorites={favorites}
+            toggleFavorite={toggleFavorite}
+          />
+          <View style={styles.extraInfo}>
+            <View style={styles.infoText}>
+              <Text style={styles.infoLine}>
+                <Text style={styles.infoLabel}>ID:</Text> {details.id ?? '...'}
+              </Text>
+              <Text style={styles.infoLine}>
+                <Text style={styles.infoLabel}>Types:</Text>{' '}
+                {details.types && details.types.length > 0
+                  ? details.types.join(', ')
+                  : '...'}
+              </Text>
+            </View>
+          </View>
+        </View>
+      );
+    },
+    [favorites, toggleFavorite, pokemonDetails]
   );
 
   // Remove delayedFetching logic and use isFetchingNextPage directly
@@ -194,4 +256,32 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   footer: { padding: 16, alignItems: 'center', width: '100%', minHeight: 24 },
+  cardContainer: {
+    backgroundColor: '#f8f8f8',
+    marginVertical: 6,
+    marginHorizontal: 4,
+    borderRadius: 10,
+    padding: 8,
+    flexDirection: 'column',
+    elevation: 1,
+  },
+  extraInfo: {
+    marginHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  infoText: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  infoLine: {
+    fontSize: 13,
+    color: '#444',
+    marginBottom: 2,
+  },
+  infoLabel: {
+    fontWeight: 'bold',
+    color: '#222',
+  },
 });
